@@ -245,6 +245,169 @@ class MetricsLogger:
         self.history = {k: v.tolist() for k, v in data.items()}
 
 
+@dataclass
+class ContinualLearningMetrics:
+    """Container for continual learning metrics."""
+    A_final: float  # Final average accuracy
+    F_avg: float  # Average forgetting
+    BWT: float  # Backward transfer
+    FWT: float  # Forward transfer
+    n_fwt_measured: int  # Number of measured FWT cells
+    accuracy_matrix: Optional[np.ndarray] = None
+
+
+def compute_continual_learning_metrics(
+    accuracy_matrix: np.ndarray,
+    chance_level: float = 50.0,
+    verbose: bool = False
+) -> ContinualLearningMetrics:
+    """
+    Compute continual learning metrics with proper NaN handling.
+
+    This implementation addresses reviewer concerns about:
+    1. Diagonal-based vs max-over-time forgetting (we use diagonal)
+    2. FWT computation from upper triangle (properly handles NaN)
+    3. BWT = -F_avg relationship (explicit)
+
+    Metrics:
+        A_final = mean(A[T-1, :])  - final average accuracy
+        F_avg = mean(A[j,j] - A[T-1,j]) for j < T  - average forgetting
+        BWT = mean(A[T-1,j] - A[j,j]) for j < T  - backward transfer
+        FWT = mean(A[j-1,j] - chance) for j >= 1  - forward transfer
+
+    Args:
+        accuracy_matrix: [T, T] accuracy matrix where A[i,j] is accuracy on
+                        task j after training through task i. May contain NaN
+                        for unmeasured cells (upper triangle).
+        chance_level: Random chance baseline (default 50% for binary tasks)
+        verbose: Print detailed breakdown
+
+    Returns:
+        ContinualLearningMetrics object
+
+    Note:
+        - Diagonal-based forgetting is valid for disjoint task sequences
+          where peak performance occurs at diagonal
+        - FWT only uses measured cells (non-NaN)
+        - BWT = -F_avg by construction for diagonal-based forgetting
+    """
+    T = accuracy_matrix.shape[0]
+
+    # Final accuracy: mean of last row (ignore NaN)
+    final_row = accuracy_matrix[T-1, :]
+    A_final = np.nanmean(final_row)
+
+    # Forgetting: F_j = A[j,j] - A[T-1,j] for j < T
+    forgetting = []
+    if verbose:
+        print("\nForgetting breakdown:")
+    for j in range(T-1):
+        diag = accuracy_matrix[j, j]
+        final = accuracy_matrix[T-1, j]
+        if not np.isnan(diag) and not np.isnan(final):
+            f_j = diag - final
+            forgetting.append(f_j)
+            if verbose:
+                print(f"  F_{j+1} = {diag:.2f} - {final:.2f} = {f_j:.2f}")
+    F_avg = np.mean(forgetting) if len(forgetting) > 0 else np.nan
+
+    # Backward Transfer: BWT = mean(A[T-1,j] - A[j,j]) for j < T
+    bwt_terms = []
+    for j in range(T-1):
+        final = accuracy_matrix[T-1, j]
+        diag = accuracy_matrix[j, j]
+        if not np.isnan(final) and not np.isnan(diag):
+            bwt_j = final - diag
+            bwt_terms.append(bwt_j)
+    BWT = np.mean(bwt_terms) if len(bwt_terms) > 0 else np.nan
+
+    # Forward Transfer: FWT = mean(A[j-1,j] - chance) for j >= 1
+    # CRITICAL: Only use measured cells (not NaN)
+    fwt_terms = []
+    if verbose:
+        print("\nForward Transfer breakdown:")
+    for j in range(1, T):
+        pretrain = accuracy_matrix[j-1, j]  # Performance BEFORE training task j
+        if not np.isnan(pretrain):
+            fwt_j = pretrain - chance_level
+            fwt_terms.append(fwt_j)
+            if verbose:
+                print(f"  FWT_{j+1} = {pretrain:.2f} - {chance_level:.2f} = {fwt_j:.2f}")
+        else:
+            if verbose:
+                print(f"  FWT_{j+1} = NaN (not measured)")
+    FWT = np.mean(fwt_terms) if len(fwt_terms) > 0 else np.nan
+
+    if verbose:
+        print(f"\nSummary:")
+        print(f"  A_final = {A_final:.2f}%")
+        print(f"  F_avg = {F_avg:.2f}")
+        print(f"  BWT = {BWT:.2f} (should equal -F_avg)")
+        print(f"  FWT = {FWT:.2f} (n={len(fwt_terms)} measured)")
+
+    return ContinualLearningMetrics(
+        A_final=A_final,
+        F_avg=F_avg,
+        BWT=BWT,
+        FWT=FWT,
+        n_fwt_measured=len(fwt_terms),
+        accuracy_matrix=accuracy_matrix
+    )
+
+
+def validate_diagonal_peak(accuracy_matrix: np.ndarray, verbose: bool = False) -> Dict[str, float]:
+    """
+    Validate that peak performance occurs at diagonal.
+
+    For disjoint task sequences (like Split-MNIST), we expect:
+        max_i A[i,j] ≈ A[j,j]
+
+    This justifies using diagonal-based forgetting instead of
+    max-over-time forgetting.
+
+    Args:
+        accuracy_matrix: [T, T] accuracy matrix
+        verbose: Print per-task results
+
+    Returns:
+        dict with 'max_deviation' and 'mean_deviation'
+    """
+    T = accuracy_matrix.shape[0]
+    deviations = []
+
+    if verbose:
+        print("\nDiagonal peak validation:")
+        print("Task | A[j,j] | max_i A[i,j] | δ_j")
+        print("-" * 45)
+
+    for j in range(T):
+        diag = accuracy_matrix[j, j]
+        max_val = np.nanmax(accuracy_matrix[:, j])
+        deviation = max_val - diag
+
+        deviations.append(deviation)
+
+        if verbose:
+            print(f"{j+1:4d} | {diag:6.2f} | {max_val:12.2f} | {deviation:4.2f}")
+
+    max_dev = max(deviations)
+    mean_dev = np.mean(deviations)
+
+    if verbose:
+        print(f"\nMax deviation: {max_dev:.2f}")
+        print(f"Mean deviation: {mean_dev:.2f}")
+        if max_dev < 0.5:
+            print("✓ Diagonal peak validated (δ < 0.5)")
+        else:
+            print("⚠ Significant deviation - consider max-over-time forgetting")
+
+    return {
+        'max_deviation': max_dev,
+        'mean_deviation': mean_dev,
+        'deviations': deviations
+    }
+
+
 if __name__ == "__main__":
     # Example usage
     print("Testing metrics utilities...")
@@ -275,3 +438,25 @@ if __name__ == "__main__":
     print(f"\nMetrics Summary:")
     for k, v in summary.items():
         print(f"  {k}: {v:.4f}")
+
+    # Test continual learning metrics
+    print("\n" + "="*80)
+    print("Testing Continual Learning Metrics")
+    print("="*80)
+
+    # Simulate accuracy matrix
+    T = 5
+    acc_matrix = np.array([
+        [92.3, np.nan, np.nan, np.nan, np.nan],
+        [85.1, 94.1, np.nan, np.nan, np.nan],
+        [82.4, 89.3, 93.5, np.nan, np.nan],
+        [80.7, 86.8, 90.2, 91.8, np.nan],
+        [78.9, 84.5, 88.1, 89.3, 90.2]
+    ])
+
+    cl_metrics = compute_continual_learning_metrics(acc_matrix, verbose=True)
+
+    print("\n" + "="*80)
+    print("Validating diagonal peak assumption:")
+    print("="*80)
+    diagonal_validation = validate_diagonal_peak(acc_matrix, verbose=True)
