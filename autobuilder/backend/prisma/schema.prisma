@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// USER & AUTHENTICATION
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apps App[]
+
+  @@index([email])
+}
+
+// APP (Generated Application)
+model App {
+  id             String  @id @default(cuid())
+  userId         String
+  name           String
+  description    String?
+
+  // Generated Code
+  frontendCode   String  @db.Text
+  backendCode    String  @db.Text
+  databaseSchema String  @db.Text
+
+  // System M State
+  metaState MetaState?
+
+  // Deployment
+  deploymentUrl    String?
+  deploymentStatus String @default("draft") // draft, deployed, error
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  analytics    Analytics[]
+  improvements Improvement[]
+
+  @@index([userId])
+}
+
+// ANALYTICS (User interaction data)
+model Analytics {
+  id         String   @id @default(cuid())
+  appId      String
+
+  actionType String   // "component_viewed", "button_clicked", etc
+  actionData Json?    // {component: "HabitList", duration: 45}
+
+  errorMessage String?
+  timestamp    DateTime @default(now())
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([timestamp])
+}
+
+// META STATE (System M state for each app)
+model MetaState {
+  id    String @id @default(cuid())
+  appId String @unique
+
+  // Epistemic
+  predictionError Float @default(0.5)
+  complexity      Float @default(0.5)
+  entropy         Float @default(0.5)
+  novelty         Float @default(0.5)
+
+  // Phenomenal
+  phi             Float @default(0.5) // Integrated information
+  opacity         Float @default(0.5) // Transparency
+  bindingStrength Float @default(0.5) // Component coherence
+
+  // Environmental
+  taskDifficulty    Float @default(0.3)
+  distributionShift Float @default(0.1)
+  anomalyScore      Float @default(0.0)
+
+  updatedAt DateTime @updatedAt
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+}
+
+// IMPROVEMENTS (System M suggestions)
+model Improvement {
+  id    String @id @default(cuid())
+  appId String
+
+  type        String  // "add_type_hints", "optimize_performance", etc
+  description String
+  code        String  @db.Text
+
+  status    String @default("suggested") // suggested, approved, applied, rejected
+  riskLevel String @default("low")       // low, medium, high
+
+  appliedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  app App @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@index([appId])
+  @@index([status])
+}
