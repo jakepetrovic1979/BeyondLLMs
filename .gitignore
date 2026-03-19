@@ -71,3 +71,11 @@ results/
 tmp/
 temp/
 *.tmp
+
+# Node.js / AutoBuilder
+node_modules/
+.env
+*.log
+autobuilder/backend/dist/
+autobuilder/frontend/build/
+autobuilder/backend/prisma/migrations/
