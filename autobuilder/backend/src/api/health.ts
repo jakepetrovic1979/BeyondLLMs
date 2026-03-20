@@ -4,19 +4,19 @@ import { prisma } from '../db'
 const router = Router()
 
 router.get('/health', async (_req: Request, res: Response) => {
+  let dbHealthy = false
   try {
     await prisma.$queryRaw`SELECT 1`
-
-    res.json({
-      status: 'healthy',
-      timestamp: new Date(),
-    })
-  } catch (error: any) {
-    res.status(503).json({
-      status: 'unhealthy',
-      error: error.message,
-    })
+    dbHealthy = true
+  } catch {
+    // DB not ready yet — still return 200 so Railway knows the process is alive
   }
+
+  res.json({
+    status: dbHealthy ? 'healthy' : 'degraded',
+    database: dbHealthy ? 'connected' : 'disconnected',
+    timestamp: new Date(),
+  })
 })
 
 export default router

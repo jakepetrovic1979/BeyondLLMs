@@ -22,12 +22,19 @@ app.use('/api', improvementsRouter)
 const PORT = process.env.PORT || 3001
 
 async function main() {
-  await prisma.$connect()
-  console.log('Database connected')
-
-  app.listen(PORT, () => {
+  // Start listening first so Railway healthcheck can reach us
+  app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`AutoBuilder API running on port ${PORT}`)
   })
+
+  // Connect to database after server is listening
+  try {
+    await prisma.$connect()
+    console.log('Database connected')
+  } catch (error) {
+    console.error('Database connection failed:', error)
+    // Don't exit — server is running, health endpoint will report unhealthy
+  }
 }
 
 main().catch((error) => {
