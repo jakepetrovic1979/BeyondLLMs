@@ -6,7 +6,7 @@ const router = Router()
 
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { userId, appName, appDescription, features, dataModel } = req.body
+    const { appName, appDescription, features, dataModel } = req.body
 
     if (!appName || !appDescription) {
       return res.status(400).json({ error: 'appName and appDescription are required' })
@@ -23,7 +23,6 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     const app = await prisma.app.create({
       data: {
-        userId: userId || null,
         name: appName,
         description: appDescription,
         frontendCode: generatedCode.frontendCode,
