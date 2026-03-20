@@ -23,7 +23,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     const app = await prisma.app.create({
       data: {
-        userId: userId || 'anonymous',
+        userId: userId || null,
         name: appName,
         description: appDescription,
         frontendCode: generatedCode.frontendCode,
