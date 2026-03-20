@@ -24,7 +24,6 @@ export function OnboardingFlow() {
 
     try {
       const result = await appAPI.createApp({
-        userId: 'demo-user',
         appName,
         appDescription: description,
       })

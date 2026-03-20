@@ -7,7 +7,6 @@ const API = axios.create({
 export const appAPI = {
   // App CRUD
   createApp: (data: {
-    userId: string
     appName: string
     appDescription: string
     features?: string[]
