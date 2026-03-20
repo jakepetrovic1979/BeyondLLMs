@@ -7,16 +7,9 @@ router.get('/health', async (_req: Request, res: Response) => {
   try {
     await prisma.$queryRaw`SELECT 1`
 
-    const appCount = await prisma.app.count()
-    const analyticsCount = await prisma.analytics.count()
-
     res.json({
       status: 'healthy',
       timestamp: new Date(),
-      metrics: {
-        apps: appCount,
-        totalAnalytics: analyticsCount,
-      },
     })
   } catch (error: any) {
     res.status(503).json({
