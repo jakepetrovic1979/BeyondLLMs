@@ -83,8 +83,18 @@ export function AppDashboard({ appId }: { appId: string }) {
 
   return (
     <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 'bold' }}>{appData.name}</h1>
-      <p style={{ color: '#6b7280', marginTop: 4 }}>{appData.description}</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 'bold' }}>{appData.name}</h1>
+          <p style={{ color: '#6b7280', marginTop: 4 }}>{appData.description}</p>
+        </div>
+        <a
+          href={`/apps/${appId}/code`}
+          style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', borderRadius: 4, textDecoration: 'none', fontSize: 14 }}
+        >
+          View Code
+        </a>
+      </div>
 
       {/* Meta-States */}
       {metaState && (
