@@ -1,3 +1,7 @@
+console.log('Starting AutoBuilder backend...')
+console.log('PORT env:', process.env.PORT)
+console.log('NODE_ENV:', process.env.NODE_ENV)
+
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
@@ -19,27 +23,20 @@ app.use('/api', appsRouter)
 app.use('/api', generationRouter)
 app.use('/api', improvementsRouter)
 
-const PORT = process.env.PORT || 3001
+const PORT = Number(process.env.PORT) || 3001
 
-async function main() {
-  // Start listening first so Railway healthcheck can reach us
-  app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`AutoBuilder API running on port ${PORT}`)
-  })
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`AutoBuilder API running on port ${PORT}`)
+})
 
-  // Connect to database after server is listening
-  try {
-    await prisma.$connect()
-    console.log('Database connected')
-  } catch (error) {
-    console.error('Database connection failed:', error)
-    // Don't exit — server is running, health endpoint will report unhealthy
-  }
-}
-
-main().catch((error) => {
-  console.error('Failed to start server:', error)
+server.on('error', (err) => {
+  console.error('Server listen error:', err)
   process.exit(1)
 })
+
+// Connect to database in background (don't block server startup)
+prisma.$connect()
+  .then(() => console.log('Database connected'))
+  .catch((err) => console.error('Database connection failed:', err))
 
 export default app
