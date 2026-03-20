@@ -48,7 +48,7 @@ router.post('/apps', async (req: Request, res: Response) => {
 router.get('/apps/:appId', async (req: Request, res: Response) => {
   try {
     const app = await prisma.app.findUnique({
-      where: { id: req.params.appId },
+      where: { id: req.params.appId as string },
       include: {
         metaState: true,
         analytics: { take: 100, orderBy: { timestamp: 'desc' } },
@@ -89,7 +89,7 @@ router.post('/apps/:appId/analytics', async (req: Request, res: Response) => {
 
     await prisma.analytics.create({
       data: {
-        appId: req.params.appId,
+        appId: req.params.appId as string,
         actionType: type,
         actionData: data,
         errorMessage: error,

@@ -7,7 +7,7 @@ router.get('/apps/:appId/improvements/suggested', async (req: Request, res: Resp
   try {
     const improvements = await prisma.improvement.findMany({
       where: {
-        appId: req.params.appId,
+        appId: req.params.appId as string,
         status: 'suggested',
       },
       orderBy: { createdAt: 'desc' },
@@ -22,7 +22,7 @@ router.get('/apps/:appId/improvements/suggested', async (req: Request, res: Resp
 router.post('/improvements/:improvementId/approve', async (req: Request, res: Response) => {
   try {
     const improvement = await prisma.improvement.update({
-      where: { id: req.params.improvementId },
+      where: { id: req.params.improvementId as string },
       data: {
         status: 'applied',
         appliedAt: new Date(),
@@ -54,7 +54,7 @@ router.post('/improvements/:improvementId/approve', async (req: Request, res: Re
 router.post('/improvements/:improvementId/reject', async (req: Request, res: Response) => {
   try {
     await prisma.improvement.update({
-      where: { id: req.params.improvementId },
+      where: { id: req.params.improvementId as string },
       data: { status: 'rejected' },
     })
 
